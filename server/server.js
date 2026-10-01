@@ -73,11 +73,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Express Server
-app.listen(PORT, () => {
-  console.log(`===============================================`);
-  console.log(` BulkMail Pro Server running on port ${PORT}`);
-  console.log(` API URL: http://localhost:${PORT}/api`);
-  console.log(` Default Admin: admin@bulkmailpro.com / admin123`);
-  console.log(`===============================================`);
-});
+// Start Express Server (local dev only — Vercel uses serverless export below)
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`===============================================`);
+    console.log(` BulkMail Pro Server running on port ${PORT}`);
+    console.log(` API URL: http://localhost:${PORT}/api`);
+    console.log(` Default Admin: admin@bulkmailpro.com / admin123`);
+    console.log(`===============================================`);
+  });
+}
+
+// Export for Vercel Serverless Functions
+export default app;

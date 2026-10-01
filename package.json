@@ -1,0 +1,13 @@
+{
+  "name": "bulkmailpro",
+  "version": "1.0.0",
+  "description": "Full Stack MERN Bulk Mail Application",
+  "scripts": {
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "install:all": "cd client && npm install && cd ../server && npm install"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
