@@ -33,10 +33,12 @@ const Login = () => {
       navigate('/dashboard');
     } catch (err) {
       console.error('Google Login Error:', err);
-      const message =
-        err.response?.data?.message || 'Google authentication failed. Please try again.';
+      const backendMsg = err.response?.data?.message;
+      const message = backendMsg
+        ? backendMsg
+        : 'Google Sign-In is not configured for this domain. Please use email + password login below.';
       setErrorMsg(message);
-      toast.error(message);
+      toast.error('Google Sign-In failed — use email/password instead.');
     } finally {
       setGoogleLoading(false);
     }

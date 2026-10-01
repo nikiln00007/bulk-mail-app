@@ -224,14 +224,25 @@ export const googleAuth = async (req, res) => {
       payload = await gResponse.json();
 
       if (!gResponse.ok || payload.error || payload.error_description) {
+        const errMsg = payload.error_description || payload.error || 'Invalid Google token';
         console.error('Google token verification error:', payload);
+        // Common cause: domain not in authorized JavaScript origins in Google Cloud Console
         return res.status(401).json({
-          message: payload.error_description || 'Invalid Google authentication token',
+          message: `Google Sign-In failed: ${errMsg}. If you are the developer, please add your domain to Authorized JavaScript Origins in Google Cloud Console.`,
+        });
+      }
+
+      // Verify the token audience matches our client ID
+      const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+      if (expectedClientId && payload.aud !== expectedClientId) {
+        console.error('Google token audience mismatch:', payload.aud, 'expected:', expectedClientId);
+        return res.status(401).json({
+          message: 'Google token audience mismatch. Check your GOOGLE_CLIENT_ID configuration.',
         });
       }
     } catch (fetchErr) {
       console.error('Failed to reach Google token verification endpoint:', fetchErr);
-      return res.status(502).json({ message: 'Unable to contact Google authentication service' });
+      return res.status(502).json({ message: 'Unable to contact Google authentication service. Please try email login instead.' });
     }
 
     const { email, name, picture, sub } = payload;
