@@ -43,6 +43,16 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Ensure database connection in serverless / cloud environment
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+  } catch (err) {
+    // Continue in fallback mode
+  }
+  next();
+});
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.status(200).json({

@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import Admin from '../models/Admin.js';
+import connectDB from '../config/db.js';
 import { isValidEmail } from '../utils/validateEmails.js';
 
 // In-memory fallback storage for when MongoDB is not running locally
@@ -37,7 +38,9 @@ export const registerAdmin = async (req, res) => {
       return res.status(400).json({ message: 'Please provide name, email, and password' });
     }
 
-    if (!isValidEmail(email)) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!isValidEmail(cleanEmail)) {
       return res.status(400).json({ message: 'Invalid email address format' });
     }
 
@@ -45,9 +48,11 @@ export const registerAdmin = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters long' });
     }
 
+    await connectDB();
+
     // Check if MongoDB is connected
     if (mongoose.connection.readyState === 1) {
-      const adminExists = await Admin.findOne({ email: email.toLowerCase() });
+      const adminExists = await Admin.findOne({ email: cleanEmail });
       if (adminExists) {
         return res.status(400).json({ message: 'Admin with this email already exists' });
       }
@@ -56,8 +61,8 @@ export const registerAdmin = async (req, res) => {
       const hashedPassword = await bcrypt.hash(password, salt);
 
       const admin = await Admin.create({
-        name,
-        email: email.toLowerCase(),
+        name: name.trim(),
+        email: cleanEmail,
         password: hashedPassword,
       });
 
@@ -71,7 +76,7 @@ export const registerAdmin = async (req, res) => {
     }
 
     // In-memory fallback
-    const existing = memoryAdmins.find((a) => a.email === email.toLowerCase());
+    const existing = memoryAdmins.find((a) => a.email === cleanEmail);
     if (existing) {
       return res.status(400).json({ message: 'Admin with this email already exists' });
     }
@@ -80,8 +85,8 @@ export const registerAdmin = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
     const newAdmin = {
       _id: new mongoose.Types.ObjectId().toString(),
-      name,
-      email: email.toLowerCase(),
+      name: name.trim(),
+      email: cleanEmail,
       passwordHash,
       createdAt: new Date(),
     };
@@ -113,13 +118,35 @@ export const loginAdmin = async (req, res) => {
       return res.status(400).json({ message: 'Please provide both email and password' });
     }
 
-    if (!isValidEmail(email)) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!isValidEmail(cleanEmail)) {
       return res.status(400).json({ message: 'Please enter a valid email address' });
+    }
+
+    // Attempt to ensure database connection is established
+    try {
+      await connectDB();
+    } catch (e) {
+      // Ignore, will use in-memory fallback
     }
 
     // If MongoDB is connected, query DB
     if (mongoose.connection.readyState === 1) {
-      const admin = await Admin.findOne({ email: email.toLowerCase() });
+      let admin = await Admin.findOne({ email: cleanEmail });
+
+      // Auto-seed default admin if default credentials are used and not yet in database
+      if (!admin && cleanEmail === 'admin@bulkmailpro.com' && password === 'admin123') {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash('admin123', salt);
+        admin = await Admin.create({
+          name: 'Administrator',
+          email: 'admin@bulkmailpro.com',
+          password: hashedPassword,
+        });
+        console.log('Auto-seeded default admin during login');
+      }
+
       if (!admin) {
         return res.status(401).json({ message: 'Invalid email or password' });
       }
@@ -139,7 +166,20 @@ export const loginAdmin = async (req, res) => {
     }
 
     // In-memory fallback
-    const memAdmin = memoryAdmins.find((a) => a.email === email.toLowerCase());
+    let memAdmin = memoryAdmins.find((a) => a.email.toLowerCase() === cleanEmail);
+
+    // Auto-seed in-memory if needed
+    if (!memAdmin && cleanEmail === 'admin@bulkmailpro.com' && password === 'admin123') {
+      memAdmin = {
+        _id: '66f5a1b2c3d4e5f678901234',
+        name: 'Administrator',
+        email: 'admin@bulkmailpro.com',
+        passwordHash: bcrypt.hashSync('admin123', 10),
+        createdAt: new Date(),
+      };
+      memoryAdmins.push(memAdmin);
+    }
+
     if (!memAdmin) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }

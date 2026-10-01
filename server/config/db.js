@@ -1,24 +1,53 @@
 import mongoose from 'mongoose';
 
-export const connectDB = async () => {
-  try {
-    const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/bulkmailpro';
-    console.log(`Connecting to MongoDB at: ${mongoUri}...`);
-    
-    // Connect with a 5 second serverSelectionTimeoutMS so it doesn't hang indefinitely if offline
-    const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-    });
+/**
+ * Global cache for Mongoose connection in Serverless environments (Vercel)
+ */
+let cached = global.mongoose;
 
-    console.log(`MongoDB Connected successfully: ${conn.connection.host}`);
-    return conn;
-  } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
-    console.warn(
-      '\n[NOTICE] MongoDB is not running locally or the connection failed.' +
-      '\nPlease ensure MongoDB service is started, or update MONGO_URI in server/.env with your MongoDB Atlas connection string.\n'
-    );
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
+export const connectDB = async () => {
+  // If already connected, reuse existing connection
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
   }
+
+  const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+  // On Vercel, if no external MongoDB URI is provided, skip trying localhost to avoid 5s timeout
+  if (!mongoUri && process.env.VERCEL === '1') {
+    return null;
+  }
+
+  const targetUri = mongoUri || 'mongodb://127.0.0.1:27017/bulkmailpro';
+
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+      serverSelectionTimeoutMS: 4000,
+    };
+
+    cached.promise = mongoose.connect(targetUri, opts).then((mongooseInstance) => {
+      console.log(`MongoDB Connected successfully: ${mongooseInstance.connection.host}`);
+      return mongooseInstance;
+    }).catch((err) => {
+      console.warn(`MongoDB Connection Error: ${err.message}. Operating in fallback mode.`);
+      cached.promise = null;
+      return null;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+  } catch (e) {
+    cached.promise = null;
+    cached.conn = null;
+  }
+
+  return cached.conn;
 };
 
 export default connectDB;
