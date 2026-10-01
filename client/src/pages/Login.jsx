@@ -134,7 +134,7 @@ const Login = () => {
   };
 
   const handleFillDemo = () => {
-    setFormData({ email: 'admin@bulkmailpro.com', password: 'admin123' });
+    setFormData({ email: 'nikil0007@gmail.com', password: 'nikil123' });
     toast('Demo credentials auto-filled', { icon: '✨' });
   };
 
@@ -299,7 +299,7 @@ const Login = () => {
               <span>Fill Default Admin Credentials</span>
             </button>
             <p className="text-[11px] text-slate-400 mt-2 text-center">
-              admin@bulkmailpro.com &bull; admin123
+              nikil0007@gmail.com &bull; nikil123
             </p>
           </div>
         </div>

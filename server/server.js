@@ -20,13 +20,13 @@ connectDB().then(async () => {
     const adminCount = await Admin.countDocuments();
     if (adminCount === 0) {
       const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('admin123', salt);
+      const hashedPassword = await bcrypt.hash('nikil123', salt);
       await Admin.create({
-        name: 'Administrator',
-        email: 'admin@bulkmailpro.com',
+        name: 'Nikil',
+        email: 'nikil0007@gmail.com',
         password: hashedPassword,
       });
-      console.log('Default admin seeded: admin@bulkmailpro.com / admin123');
+      console.log('Default admin seeded: nikil0007@gmail.com / nikil123');
     }
   } catch (err) {
     // If DB is offline or read-only, ignore

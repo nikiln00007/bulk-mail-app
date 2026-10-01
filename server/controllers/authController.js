@@ -9,9 +9,9 @@ import { isValidEmail } from '../utils/validateEmails.js';
 export const memoryAdmins = [
   {
     _id: '66f5a1b2c3d4e5f678901234',
-    name: 'Administrator',
-    email: 'admin@bulkmailpro.com',
-    passwordHash: bcrypt.hashSync('admin123', 10),
+    name: 'Nikil',
+    email: 'nikil0007@gmail.com',
+    passwordHash: bcrypt.hashSync('nikil123', 10),
     createdAt: new Date(),
   },
 ];
@@ -136,12 +136,12 @@ export const loginAdmin = async (req, res) => {
       let admin = await Admin.findOne({ email: cleanEmail });
 
       // Auto-seed default admin if default credentials are used and not yet in database
-      if (!admin && cleanEmail === 'admin@bulkmailpro.com' && password === 'admin123') {
+      if (!admin && cleanEmail === 'nikil0007@gmail.com' && password === 'nikil123') {
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash('admin123', salt);
+        const hashedPassword = await bcrypt.hash('nikil123', salt);
         admin = await Admin.create({
-          name: 'Administrator',
-          email: 'admin@bulkmailpro.com',
+          name: 'Nikil',
+          email: 'nikil0007@gmail.com',
           password: hashedPassword,
         });
         console.log('Auto-seeded default admin during login');
@@ -169,12 +169,12 @@ export const loginAdmin = async (req, res) => {
     let memAdmin = memoryAdmins.find((a) => a.email.toLowerCase() === cleanEmail);
 
     // Auto-seed in-memory if needed
-    if (!memAdmin && cleanEmail === 'admin@bulkmailpro.com' && password === 'admin123') {
+    if (!memAdmin && cleanEmail === 'nikil0007@gmail.com' && password === 'nikil123') {
       memAdmin = {
         _id: '66f5a1b2c3d4e5f678901234',
-        name: 'Administrator',
-        email: 'admin@bulkmailpro.com',
-        passwordHash: bcrypt.hashSync('admin123', 10),
+        name: 'Nikil',
+        email: 'nikil0007@gmail.com',
+        passwordHash: bcrypt.hashSync('nikil123', 10),
         createdAt: new Date(),
       };
       memoryAdmins.push(memAdmin);
