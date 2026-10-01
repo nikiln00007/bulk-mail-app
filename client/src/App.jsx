@@ -14,6 +14,11 @@ import ComposeMail from './pages/ComposeMail';
 import EmailHistory from './pages/EmailHistory';
 import MailDetails from './pages/MailDetails';
 import Settings from './pages/Settings';
+import Contacts from './pages/Contacts';
+import Drafts from './pages/Drafts';
+import Favourites from './pages/Favourites';
+import Spam from './pages/Spam';
+import Trash from './pages/Trash';
 
 // Main Layout Wrapper for Authenticated Pages
 const AppLayout = () => {
@@ -57,16 +62,10 @@ function App() {
             boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
           },
           success: {
-            iconTheme: {
-              primary: '#22C55E',
-              secondary: '#FFFFFF',
-            },
+            iconTheme: { primary: '#22C55E', secondary: '#FFFFFF' },
           },
           error: {
-            iconTheme: {
-              primary: '#EF4444',
-              secondary: '#FFFFFF',
-            },
+            iconTheme: { primary: '#EF4444', secondary: '#FFFFFF' },
           },
         }}
       />
@@ -79,11 +78,17 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/compose" element={<ComposeMail />} />
-            <Route path="/history" element={<EmailHistory />} />
+            <Route path="/dashboard"   element={<Dashboard />} />
+            <Route path="/compose"     element={<ComposeMail />} />
+            <Route path="/history"     element={<EmailHistory />} />
             <Route path="/history/:id" element={<MailDetails />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings"    element={<Settings />} />
+            {/* New Pages */}
+            <Route path="/contacts"    element={<Contacts />} />
+            <Route path="/drafts"      element={<Drafts />} />
+            <Route path="/favourites"  element={<Favourites />} />
+            <Route path="/spam"        element={<Spam />} />
+            <Route path="/trash"       element={<Trash />} />
           </Route>
         </Route>
 
