@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,97 +10,131 @@ const GOOGLE_CLIENT_ID =
 
 const Login = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Handle Google OAuth Credential response
-  const handleGoogleCallback = async (response) => {
-    if (!response?.credential) {
-      toast.error('Google did not return a valid credential');
-      return;
-    }
+  // Use a ref to store the latest callback — avoids stale closure bug with GIS
+  const googleCallbackRef = useRef(null);
 
-    try {
-      setGoogleLoading(true);
-      setErrorMsg('');
-      const data = await authService.googleLogin(response.credential);
-      toast.success(`Welcome, ${data.name || 'Admin'}! Google login successful.`);
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Google Login Error:', err);
-      const backendMsg = err.response?.data?.message;
-      const message = backendMsg
-        ? backendMsg
-        : 'Google Sign-In is not configured for this domain. Please use email + password login below.';
-      setErrorMsg(message);
-      toast.error('Google Sign-In failed — use email/password instead.');
-    } finally {
-      setGoogleLoading(false);
+  // Handle Google OAuth Credential response
+  const handleGoogleCallback = useCallback(
+    async (response) => {
+      console.log('[Google Auth] Callback received', response);
+      if (!response?.credential) {
+        console.error('[Google Auth] No credential in response');
+        toast.error('Google did not return a valid credential');
+        return;
+      }
+
+      try {
+        setGoogleLoading(true);
+        setErrorMsg('');
+        console.log('[Google Auth] Sending credential to backend...');
+        const data = await authService.googleLogin(response.credential);
+        console.log('[Google Auth] Success:', data);
+        toast.success(`Welcome, ${data.name || 'Admin'}! Google login successful.`);
+        navigate('/dashboard');
+      } catch (err) {
+        console.error('[Google Auth] Error:', err);
+        const backendMsg = err?.response?.data?.message;
+        console.error('[Google Auth] Backend message:', backendMsg);
+        const message = backendMsg
+          ? backendMsg
+          : 'Google Sign-In failed. Please use email + password login below.';
+        setErrorMsg(message);
+        toast.error('Google Sign-In failed. Try email/password.');
+      } finally {
+        setGoogleLoading(false);
+      }
+    },
+    [navigate]
+  );
+
+  // Always keep the ref in sync with latest callback
+  useEffect(() => {
+    googleCallbackRef.current = handleGoogleCallback;
+  }, [handleGoogleCallback]);
+
+  // Stable wrapper that delegates to the ref — passed to Google GIS once
+  const stableGoogleCallback = useRef((response) => {
+    if (googleCallbackRef.current) {
+      googleCallbackRef.current(response);
     }
-  };
+  });
 
   // Initialize Google Identity Services
-  useEffect(() => {
-    const setupGoogleSignIn = () => {
-      if (window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: GOOGLE_CLIENT_ID,
-            callback: handleGoogleCallback,
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          });
+  const initGoogleSignIn = useCallback(() => {
+    if (!window.google?.accounts?.id) return;
 
-          const btnContainer = document.getElementById('google-btn-container');
-          if (btnContainer) {
-            btnContainer.innerHTML = '';
-            window.google.accounts.id.renderButton(btnContainer, {
-              type: 'standard',
-              theme: 'outline',
-              size: 'large',
-              width: 340,
-              text: 'continue_with',
-              shape: 'pill',
-              logo_alignment: 'left',
-            });
-          }
-        } catch (e) {
-          console.error('Google Sign-In initialization error:', e);
-        }
+    try {
+      console.log('[Google Auth] Initializing GIS with client_id:', GOOGLE_CLIENT_ID);
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: stableGoogleCallback.current,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+        ux_mode: 'popup',
+      });
+
+      const btnContainer = document.getElementById('google-btn-container');
+      if (btnContainer) {
+        btnContainer.innerHTML = '';
+        window.google.accounts.id.renderButton(btnContainer, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          width: Math.min(btnContainer.offsetWidth || 340, 400),
+          text: 'continue_with',
+          shape: 'pill',
+          logo_alignment: 'left',
+        });
+        console.log('[Google Auth] Button rendered successfully');
       }
-    };
-
-    if (window.google?.accounts?.id) {
-      setupGoogleSignIn();
-    } else {
-      const timer = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          clearInterval(timer);
-          setupGoogleSignIn();
-        }
-      }, 250);
-      return () => clearInterval(timer);
+    } catch (e) {
+      console.error('[Google Auth] Initialization error:', e);
     }
   }, []);
 
+  useEffect(() => {
+    if (window.google?.accounts?.id) {
+      initGoogleSignIn();
+      return;
+    }
+
+    // Poll until Google script loads
+    const timer = setInterval(() => {
+      if (window.google?.accounts?.id) {
+        clearInterval(timer);
+        initGoogleSignIn();
+      }
+    }, 200);
+
+    // Also listen for script onload in case it fires after we start polling
+    const script = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+    if (script) {
+      const onLoad = () => {
+        clearInterval(timer);
+        initGoogleSignIn();
+      };
+      script.addEventListener('load', onLoad);
+      return () => {
+        clearInterval(timer);
+        script.removeEventListener('load', onLoad);
+      };
+    }
+
+    return () => clearInterval(timer);
+  }, [initGoogleSignIn]);
+
   const handleChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     if (errorMsg) setErrorMsg('');
   };
 
   const handleFillDemo = () => {
-    setFormData({
-      email: 'admin@bulkmailpro.com',
-      password: 'admin123',
-    });
+    setFormData({ email: 'admin@bulkmailpro.com', password: 'admin123' });
     toast('Demo credentials auto-filled', { icon: '✨' });
   };
 
@@ -122,7 +156,7 @@ const Login = () => {
     } catch (err) {
       console.error('Login error:', err);
       const message =
-        err.response?.data?.message || 'Invalid email or password. Please try again.';
+        err?.response?.data?.message || 'Invalid email or password. Please try again.';
       setErrorMsg(message);
       toast.error(message);
     } finally {
@@ -143,20 +177,19 @@ const Login = () => {
           <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 mb-4">
             <Mail className="w-7 h-7" />
           </div>
-
           <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
             BulkMail <span className="text-blue-600">Pro</span>
           </h2>
           <p className="text-xs text-slate-500 mt-1.5 font-medium">
-            High-Performance Bulk Email Dispatcher & Management
+            High-Performance Bulk Email Dispatcher &amp; Management
           </p>
         </div>
 
         {/* Form Body */}
         <div className="p-8 sm:p-10 pt-6">
           {errorMsg && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-shake">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -204,10 +237,12 @@ const Login = () => {
                 <input
                   type="email"
                   name="email"
+                  id="login-email"
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="admin@bulkmailpro.com"
                   required
+                  autoComplete="email"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                 />
               </div>
@@ -224,10 +259,12 @@ const Login = () => {
                 <input
                   type="password"
                   name="password"
+                  id="login-password"
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
                   required
+                  autoComplete="current-password"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                 />
               </div>
@@ -235,6 +272,7 @@ const Login = () => {
 
             <button
               type="submit"
+              id="login-submit"
               disabled={loading || googleLoading}
               className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99]"
             >
@@ -253,6 +291,7 @@ const Login = () => {
           <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col items-center">
             <button
               type="button"
+              id="fill-demo-btn"
               onClick={handleFillDemo}
               className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100/80 px-3.5 py-1.5 rounded-lg border border-blue-200/60 transition-colors flex items-center gap-1.5"
             >
