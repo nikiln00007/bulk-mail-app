@@ -15,7 +15,20 @@ const adminSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: false,
+  },
+  avatar: {
+    type: String,
+    default: '',
+  },
+  googleId: {
+    type: String,
+    default: '',
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local',
   },
   createdAt: {
     type: Date,

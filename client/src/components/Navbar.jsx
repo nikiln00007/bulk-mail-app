@@ -64,9 +64,17 @@ const Navbar = ({ onOpenSidebar }) => {
 
         {/* User badge */}
         <div className="flex items-center gap-2.5 pl-1">
-          <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 text-blue-600 font-bold text-xs flex items-center justify-center">
-            {user.name ? user.name.charAt(0).toUpperCase() : 'A'}
-          </div>
+          {user.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-8 h-8 rounded-full object-cover border border-slate-200"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200 text-blue-600 font-bold text-xs flex items-center justify-center">
+              {user.name ? user.name.charAt(0).toUpperCase() : 'A'}
+            </div>
+          )}
           <span className="text-xs font-semibold text-slate-700 hidden md:inline">
             {user.name}
           </span>

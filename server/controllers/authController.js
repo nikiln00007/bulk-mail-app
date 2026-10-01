@@ -203,6 +203,122 @@ export const loginAdmin = async (req, res) => {
 };
 
 /**
+ * @desc    Authenticate with Google OAuth ID Token
+ * @route   POST /api/auth/google
+ * @access  Public
+ */
+export const googleAuth = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: 'Google credential token is required' });
+    }
+
+    // Verify token with Google's official API
+    let payload;
+    try {
+      const gResponse = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+      );
+      payload = await gResponse.json();
+
+      if (!gResponse.ok || payload.error || payload.error_description) {
+        console.error('Google token verification error:', payload);
+        return res.status(401).json({
+          message: payload.error_description || 'Invalid Google authentication token',
+        });
+      }
+    } catch (fetchErr) {
+      console.error('Failed to reach Google token verification endpoint:', fetchErr);
+      return res.status(502).json({ message: 'Unable to contact Google authentication service' });
+    }
+
+    const { email, name, picture, sub } = payload;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Google account does not provide an email address' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Ensure database connection
+    try {
+      await connectDB();
+    } catch (e) {
+      // Ignore, will use in-memory fallback
+    }
+
+    if (mongoose.connection.readyState === 1) {
+      let admin = await Admin.findOne({ email: cleanEmail });
+
+      if (!admin) {
+        // Register new admin via Google
+        admin = await Admin.create({
+          name: name || 'Google User',
+          email: cleanEmail,
+          avatar: picture || '',
+          googleId: sub,
+          authProvider: 'google',
+        });
+        console.log(`New admin registered via Google: ${cleanEmail}`);
+      } else {
+        // Update avatar/googleId if missing
+        let updated = false;
+        if (!admin.googleId && sub) {
+          admin.googleId = sub;
+          updated = true;
+        }
+        if (picture && admin.avatar !== picture) {
+          admin.avatar = picture;
+          updated = true;
+        }
+        if (updated) await admin.save();
+      }
+
+      return res.status(200).json({
+        _id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        avatar: admin.avatar,
+        token: generateToken(admin._id),
+        message: 'Google login successful',
+      });
+    }
+
+    // In-memory fallback
+    let memAdmin = memoryAdmins.find((a) => a.email.toLowerCase() === cleanEmail);
+    if (!memAdmin) {
+      memAdmin = {
+        _id: new mongoose.Types.ObjectId().toString(),
+        name: name || 'Google User',
+        email: cleanEmail,
+        avatar: picture || '',
+        googleId: sub,
+        authProvider: 'google',
+        createdAt: new Date(),
+      };
+      memoryAdmins.push(memAdmin);
+    }
+
+    return res.status(200).json({
+      _id: memAdmin._id,
+      name: memAdmin.name,
+      email: memAdmin.email,
+      avatar: memAdmin.avatar,
+      token: generateToken(memAdmin._id),
+      message: 'Google login successful',
+    });
+  } catch (error) {
+    console.error('Google Auth error:', error);
+    res.status(500).json({
+      message: 'Server error during Google authentication',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * @desc    Get logged in admin info
  * @route   GET /api/auth/me
  * @access  Private

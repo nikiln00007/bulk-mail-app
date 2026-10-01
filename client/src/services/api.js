@@ -56,6 +56,23 @@ export const authService = {
     return response.data;
   },
 
+  googleLogin: async (credential) => {
+    const response = await api.post('/auth/google', { credential });
+    if (response.data?.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem(
+        'user',
+        JSON.stringify({
+          name: response.data.name,
+          email: response.data.email,
+          avatar: response.data.avatar || '',
+          _id: response.data._id,
+        })
+      );
+    }
+    return response.data;
+  },
+
   register: async (userData) => {
     const response = await api.post('/auth/register', userData);
     if (response.data?.token) {

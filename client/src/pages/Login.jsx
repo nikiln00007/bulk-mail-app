@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authService } from '../services/api';
+
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '894962009364-92tjhfc6f6simb8raf88ftggbjht3v34.apps.googleusercontent.com';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -11,7 +15,76 @@ const Login = () => {
     password: '',
   });
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Handle Google OAuth Credential response
+  const handleGoogleCallback = async (response) => {
+    if (!response?.credential) {
+      toast.error('Google did not return a valid credential');
+      return;
+    }
+
+    try {
+      setGoogleLoading(true);
+      setErrorMsg('');
+      const data = await authService.googleLogin(response.credential);
+      toast.success(`Welcome, ${data.name || 'Admin'}! Google login successful.`);
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Google Login Error:', err);
+      const message =
+        err.response?.data?.message || 'Google authentication failed. Please try again.';
+      setErrorMsg(message);
+      toast.error(message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  // Initialize Google Identity Services
+  useEffect(() => {
+    const setupGoogleSignIn = () => {
+      if (window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCallback,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+
+          const btnContainer = document.getElementById('google-btn-container');
+          if (btnContainer) {
+            btnContainer.innerHTML = '';
+            window.google.accounts.id.renderButton(btnContainer, {
+              type: 'standard',
+              theme: 'outline',
+              size: 'large',
+              width: 340,
+              text: 'continue_with',
+              shape: 'pill',
+              logo_alignment: 'left',
+            });
+          }
+        } catch (e) {
+          console.error('Google Sign-In initialization error:', e);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      setupGoogleSignIn();
+    } else {
+      const timer = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(timer);
+          setupGoogleSignIn();
+        }
+      }, 250);
+      return () => clearInterval(timer);
+    }
+  }, []);
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -86,6 +159,37 @@ const Login = () => {
             </div>
           )}
 
+          {/* Google Sign In Section */}
+          <div className="space-y-3 mb-5">
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">
+              Quick Sign In with Google
+            </label>
+
+            {/* Official Google GIS Button Container */}
+            <div className="flex justify-center min-h-[44px]">
+              <div id="google-btn-container" className="w-full flex justify-center" />
+            </div>
+
+            {googleLoading && (
+              <p className="text-center text-xs text-blue-600 font-medium animate-pulse flex items-center justify-center gap-1.5">
+                <span className="w-3.5 h-3.5 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin" />
+                <span>Authenticating with Google...</span>
+              </p>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Or Continue With Email
+              </span>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -129,14 +233,14 @@ const Login = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || googleLoading}
               className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99]"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>Sign In to Dashboard</span>
+                  <span>Sign In with Password</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
